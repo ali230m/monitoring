@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Monitor</title>
+    <!-- تضمين Bootstrap من CDN -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fa;
+        }
+        h1 {
+            color: #007bff;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #888;
+        }
+        .expandable {
+            cursor: pointer;
+            color: #ff0000;
+            text-decoration: underline;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-4">
+        <h1 class="text-center">Network Monitor</h1>
+
+        <a href="/network_devices" class="btn btn-info btn-block mb-4">View Connected Devices</a>
+        <!-- Form to Upload PCAP File -->
+        <form action="/upload" method="post" enctype="multipart/form-data" class="mb-4">
+            <div class="form-group">
+                <input type="file" class="form-control-file" name="file" accept=".pcap" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Upload PCAP File</button>
+        </form>
+        
+        <!-- Form to Start and Stop Monitoring -->
+        <form action="/start_monitoring" method="post" onsubmit="return confirmAction('start');" class="mb-4">
+            <button type="submit" class="btn btn-success btn-block">Start Monitoring</button>
+        </form>
+        <form action="/stop_monitoring" method="post" onsubmit="return confirmAction('stop');">
+            <button type="submit" class="btn btn-danger btn-block">Stop Monitoring</button>
+        </form>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <h2>Monitoring Status</h2>
+        <p>Status: {{ 'Running' if monitoring else 'Not Running' }}</p>
+        
+        {% if monitoring %}
+            <h2>Network Traffic Statistics</h2>
+            <p>Bytes Sent: {{ network_data.bytes_sent }} bytes</p>
+            <p>Bytes Received: {{ network_data.bytes_recv }} bytes</p>
+
+            <h2>Live Network Anomalies</h2>
+            {% if anomalies_data.anomalies %}
+                <ul class="list-group mb-4">
+                {% for anomaly in anomalies_data.anomalies %}
+                    <li class="list-group-item">
+                        <span class="expandable" onclick="toggleDetails(this)">Packet Size: {{ anomaly.size }} bytes - Anomaly Detected: {{ anomaly.detected }} - Type: {{ anomaly.type }}</span>
+                        <div class="anomaly-actions hidden">
+                            {% if anomaly.type == "Large Packet" %}
+                                <p><strong>Action Taken:</strong> Implementing packet size limits and monitoring for large packets.</p>
+                            {% elif anomaly.type == "Small Packet" %}
+                                <p><strong>Action Taken:</strong> Reviewing sources of small packets and monitoring for unusual patterns.</p>
+                            {% elif anomaly.type == "Unknown Source" %}
+                                <p><strong>Action Taken:</strong> Blocking or flagging unknown source IPs for further inspection.</p>
+                            {% else %}
+                                <p><strong>Action Taken:</strong> No specific action for this type of anomaly.</p>
+                            {% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>No live anomalies detected.</p>
+            {% endif %}
+
+            <!-- Additional Plot Section (Visible only when monitoring is active) -->
+            <div>
+                {% if plot_img %}
+                    <h2>Packet Size Distribution</h2>
+                    <img src="data:image/png;base64,{{ plot_img }}" alt="Packet Size Distribution" class="img-fluid mb-4">
+                {% else %}
+                    <p>No data available to display.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if packet_sizes %}
+            <h2>Captured Packets</h2>
+            <ul class="list-group mb-4">
+            {% for size in packet_sizes %}
+                <li class="list-group-item">Packet Size: {{ size }} bytes</li>
+            {% endfor %}
+            </ul>
+
+            <h2>Source IPs</h2>
+            <ul class="list-group mb-4">
+            {% for ip, count in source_ips.items() %}
+                <li class="list-group-item">IP: {{ ip }} - Count: {{ count }}</li>
+            {% endfor %}
+            </ul>
+
+            <h2>Anomalies Detected from PCAP</h2>
+            {% if anomalies %}
+                <ul class="list-group mb-4">
+                {% for anomaly in anomalies %}
+                    <li class="list-group-item">
+                        <span class="expandable" onclick="toggleDetails(this)">Packet Size: {{ anomaly.size }} bytes - Anomaly Detected: {{ anomaly.detected }} - Type: {{ anomaly.type }}</span>
+                        <div class="anomaly-actions hidden">
+                            {% if anomaly.type == "Large Packet" %}
+                                <p><strong>Action Taken:</strong> Implementing packet size limits and monitoring for large packets.</p>
+                            {% elif anomaly.type == "Small Packet" %}
+                                <p><strong>Action Taken:</strong> Reviewing sources of small packets and monitoring for unusual patterns.</p>
+                            {% elif anomaly.type == "Unknown Source" %}
+                                <p><strong>Action Taken:</strong> Blocking or flagging unknown source IPs for further inspection.</p>
+                            {% else %}
+                                <p><strong>Action Taken:</strong> No specific action for this type of anomaly.</p>
+                            {% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>No anomalies detected in the uploaded PCAP file.</p>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2024 Network Monitoring System. All Rights Reserved.</p>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        function toggleDetails(element) {
+            const details = element.nextElementSibling;
+            details.classList.toggle('hidden'); // Toggle visibility
+        }
+
+        function confirmAction(action) {
+            return confirm(`Are you sure you want to ${action} monitoring?`);
+        }
+    </script>
+</body>
+</html>
